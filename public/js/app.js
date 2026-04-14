@@ -103,8 +103,8 @@ dropZone.addEventListener("drop",      (e) => {
 
 function setFile(file) {
   const ext = "." + file.name.split(".").pop().toLowerCase();
-  if (![".pdf", ".ppt", ".pptx"].includes(ext)) {
-    showToast("⚠️ Only PDF and PPT/PPTX files allowed!", "error");
+  if (![".pdf"].includes(ext)) {
+    showToast("⚠️ Only PDF files are allowed!", "error");
     return;
   }
   selectedFile = file;
@@ -182,15 +182,26 @@ function renderQuestions(questions, origName, note) {
     const card = document.createElement("div");
     card.className = "question-card";
     card.style.animationDelay = `${i * 0.07}s`;
+    const areaId = `ans-${q.id}`;
     card.innerHTML = `
       <div class="q-num">${q.id}</div>
       <p class="q-text">${q.question}</p>
+      <div class="q-answer-wrap">
+        <button class="q-ans-toggle" onclick="toggleAnswer('${areaId}', this)" aria-expanded="false">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Write Answer
+        </button>
+        <div class="q-answer-area hidden" id="${areaId}">
+          <textarea class="neo-textarea" placeholder="Write your answer here…" rows="4" aria-label="Your answer for question ${q.id}"></textarea>
+          <p class="q-ans-note">Your answer is private and not saved.</p>
+        </div>
+      </div>
     `;
     questionsGrid.appendChild(card);
   });
 
-  questionsFileName.textContent = `File: ${origName}`;
-  if (note) questionsNote.textContent = note;
+  if (questionsFileName) questionsFileName.textContent = `File: ${origName}`;
+  if (note && questionsNote) questionsNote.textContent = note;
 
   // Show results link in nav
   navResultsLink.classList.remove("hidden");
@@ -207,6 +218,20 @@ function resetUploadState() {
   progressWrap.classList.add("hidden");
   progressFill.style.width = "0%";
   uploadBtn.disabled = !selectedFile;
+}
+
+// ══════════════════════════════════════════════════════
+//  ANSWER TOGGLE
+// ══════════════════════════════════════════════════════
+function toggleAnswer(areaId, btn) {
+  const area = document.getElementById(areaId);
+  const isHidden = area.classList.contains("hidden");
+  area.classList.toggle("hidden", !isHidden);
+  btn.setAttribute("aria-expanded", isHidden ? "true" : "false");
+  btn.classList.toggle("q-ans-toggle--open", isHidden);
+  if (isHidden) {
+    area.querySelector("textarea").focus();
+  }
 }
 
 function resetAll() {

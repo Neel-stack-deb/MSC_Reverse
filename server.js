@@ -32,16 +32,14 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowedMimeTypes = [
     "application/pdf",
-    "application/vnd.ms-powerpoint",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation",
   ];
-  const allowedExtensions = [".pdf", ".ppt", ".pptx"];
+  const allowedExtensions = [".pdf"];
   const ext = path.extname(file.originalname).toLowerCase();
 
   if (allowedMimeTypes.includes(file.mimetype) || allowedExtensions.includes(ext)) {
     cb(null, true);
   } else {
-    cb(new Error("Only PDF and PowerPoint files are allowed!"), false);
+    cb(new Error("Only PDF files are allowed!"), false);
   }
 };
 
