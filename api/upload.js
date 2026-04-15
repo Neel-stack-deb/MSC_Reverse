@@ -1,28 +1,35 @@
 /* ════════════════════════════════════════════════
    api/upload.js  —  Vercel Serverless Function
-   Auth-gated PDF upload → Supabase Storage
-   Also records metadata + increments user score
+   Supabase client initialized INSIDE handler to
+   prevent module-load crashes if env vars are missing.
 ════════════════════════════════════════════════ */
 
 const { createClient } = require("@supabase/supabase-js");
 const formidable = require("formidable");
 const fs = require("fs");
 
-// Disable Vercel's default body parser so formidable can read the stream
 module.exports.config = { api: { bodyParser: false } };
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY   // server-side only — never expose this key in the browser
-);
-
 module.exports = async (req, res) => {
-  // ── CORS preflight ────────────────────────────────────
+  // ── CORS ──────────────────────────────────────────────
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Authorization, Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "POST") {
+    return res.status(405).json({ success: false, message: "Method not allowed" });
+  }
+
+  // ── Validate env vars before touching Supabase ────────
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.error("Missing Supabase env vars");
+    return res.status(500).json({ success: false, message: "Server misconfiguration: missing env vars." });
+  }
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   // ── Auth check ────────────────────────────────────────
   const token = (req.headers.authorization || "").split(" ")[1];
@@ -37,7 +44,6 @@ module.exports = async (req, res) => {
 
   // ── Parse multipart form ──────────────────────────────
   const form = formidable({ maxFileSize: 50 * 1024 * 1024 });
-
   let fields, files;
   try {
     [fields, files] = await form.parse(req);
@@ -51,7 +57,7 @@ module.exports = async (req, res) => {
     return res.status(400).json({ success: false, message: "No file received." });
   }
 
-  // ── Validate extension ────────────────────────────────
+  // ── Validate PDF ──────────────────────────────────────
   const ext = (file.originalFilename || "").split(".").pop().toLowerCase();
   if (ext !== "pdf") {
     return res.status(400).json({ success: false, message: "Only PDF files are allowed." });
@@ -60,30 +66,26 @@ module.exports = async (req, res) => {
   // ── Upload to Supabase Storage ────────────────────────
   const storagePath = `${user.id}/${Date.now()}-${file.originalFilename}`;
   const fileBuffer = fs.readFileSync(file.filepath);
+  try { fs.unlinkSync(file.filepath); } catch (_) {}
 
   const { error: uploadErr } = await supabase.storage
     .from("documents")
     .upload(storagePath, fileBuffer, { contentType: "application/pdf", upsert: false });
 
-  // Clean up temp file
-  try { fs.unlinkSync(file.filepath); } catch (_) {}
-
   if (uploadErr) {
     return res.status(500).json({ success: false, message: uploadErr.message });
   }
 
-  // ── Record upload metadata ────────────────────────────
+  // ── Log upload + update score ─────────────────────────
   await supabase.from("uploads").insert({
     user_id: user.id,
     file_path: storagePath,
     original_name: file.originalFilename,
     size: file.size,
   });
-
-  // ── Update leaderboard score ──────────────────────────
   await supabase.rpc("increment_upload_count", { uid: user.id });
 
-  // ── Return mock questions (LLM integration pending) ───
+  // ── Mock questions (LLM pending) ──────────────────────
   const mockQuestions = [
     { id: 1, question: "What is the primary objective discussed in this document?" },
     { id: 2, question: "Summarize the key concepts introduced in the first section." },

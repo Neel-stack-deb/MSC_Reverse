@@ -1,18 +1,23 @@
 /* ════════════════════════════════════════════════
    api/leaderboard.js  —  Vercel Serverless Function
-   Returns top 8 users sorted by score (public read)
 ════════════════════════════════════════════════ */
 
 const { createClient } = require("@supabase/supabase-js");
 
-const supabase = createClient(
-  process.env.SUPABASE_URL,
-  process.env.SUPABASE_ANON_KEY   // anon key is fine — profiles table allows public reads
-);
-
 module.exports = async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
-  if (req.method !== "GET") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method !== "GET") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
+
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) {
+    return res.status(500).json({ error: "Server misconfiguration: missing env vars." });
+  }
+
+  const supabase = createClient(
+    process.env.SUPABASE_URL,
+    process.env.SUPABASE_ANON_KEY
+  );
 
   const { data, error } = await supabase
     .from("profiles")

@@ -353,7 +353,13 @@ async function handleUpload() {
       headers: { "Authorization": `Bearer ${session.access_token}` },
       body: form,
     });
-    const data = await res.json();
+    const text = await res.text();
+    let data;
+    try {
+      data = JSON.parse(text);
+    } catch (_) {
+      throw new Error(`Server error (${res.status}): ${text.slice(0, 120)}`);
+    }
     if (!res.ok || !data.success) throw new Error(data.message || "Upload failed");
 
     progressFill.style.width   = "100%";
