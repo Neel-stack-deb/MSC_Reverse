@@ -1,7 +1,9 @@
 {
-  "rewrites": [
-    { "source": "/:path*", "destination": "/public/:path*" }
-  ],
+  "functions": {
+    "api/*.js": {
+      "maxDuration": 30
+    }
+  },
   "crons": [
     {
       "path": "/api/cleanup",
