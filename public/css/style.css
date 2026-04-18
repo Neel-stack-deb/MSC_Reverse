@@ -1665,7 +1665,7 @@ button {
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  gap: 1.2rem;
+  gap: .9rem;
   margin: 3rem 0 3rem;
 }
 
@@ -1675,7 +1675,8 @@ button {
   align-items: center;
   padding: 1.6rem 1.4rem 1.2rem;
   flex: 1;
-  max-width: 200px;
+  max-width: 180px;
+  min-width: 130px;
   position: relative;
   transition: transform .3s var(--ease), box-shadow .3s var(--ease);
 }
@@ -1715,6 +1716,14 @@ button {
 
 .lb-bronze .lb-avatar {
   background: linear-gradient(135deg, var(--tertiary), #2d8a7f);
+}
+
+.lb-rank-4 .lb-avatar {
+  background: linear-gradient(135deg, #7aa2c8, #567ea5);
+}
+
+.lb-rank-5 .lb-avatar {
+  background: linear-gradient(135deg, #7b8a96, #596572);
 }
 
 .lb-medal {
@@ -1771,6 +1780,14 @@ button {
 
 .lb-bronze .lb-bar {
   background: linear-gradient(180deg, var(--tertiary), #1f7268);
+}
+
+.lb-rank-4 .lb-bar {
+  background: linear-gradient(180deg, #7aa2c8, #567ea5);
+}
+
+.lb-rank-5 .lb-bar {
+  background: linear-gradient(180deg, #7b8a96, #596572);
 }
 
 .lb-rank-num {
@@ -2009,10 +2026,14 @@ button {
 
   .lb-podium {
     gap: .6rem;
+    justify-content: flex-start;
+    overflow-x: auto;
+    padding-bottom: .5rem;
   }
 
   .lb-podium-item {
     max-width: 130px;
+    min-width: 120px;
     padding: 1.2rem .8rem 1rem;
   }
 

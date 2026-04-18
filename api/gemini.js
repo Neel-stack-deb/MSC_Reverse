@@ -80,11 +80,12 @@ async function callOpenRouter(prompt) {
     headers,
     body: JSON.stringify({
       model: getModelName(),
+      temperature: 0.2,
       response_format: { type: "json_object" },
       messages: [
         {
           role: "system",
-          content: "You are a strict technical evaluator. Return only valid JSON with no markdown.",
+          content: "You are a rigorous technical interviewer and strict grader. Reward specificity, correctness, trade-off reasoning, and production realism. Return only valid JSON with no markdown.",
         },
         {
           role: "user",
@@ -167,7 +168,7 @@ function clampScore(value, min = 0, max = 100) {
 }
 
 function buildDocumentPrompt({ fileName, documentText }) {
-  return `You are ReverseIT, an exam-style product reviewer for student submissions.
+  return `You are ReverseIT, a hard technical interviewer for competitive student evaluation.
 
 The uploaded PDF usually describes a real-world problem on a famous application or platform such as social media, messaging, delivery, finance, e-commerce, streaming, education, or productivity software.
 
@@ -178,7 +179,12 @@ Your job is to read the document and generate exactly five critical questions th
 - edge cases, security, privacy, and operational concerns
 - how they would validate success
 
-The questions must be specific, thoughtful, and based on the uploaded PDF. Do not ask generic summary questions. Make them sound like interview or design-review questions.
+Rules for question difficulty:
+- Questions must be hard and technical, not generic.
+- Each question must require concrete engineering detail (architecture, data model, APIs, failure modes, scaling, security, observability, testing, rollout strategy).
+- Avoid yes/no phrasing and avoid simple definition or summary prompts.
+- At least 3 questions should force trade-off discussion between multiple valid approaches.
+- Questions must be grounded in the PDF context, not templated trivia.
 
 Return valid JSON only with this shape:
 {
@@ -204,12 +210,19 @@ function buildGradePrompt({ fileName, summary, questions, answers }) {
 The document usually concerns a real problem on a famous application or platform. Evaluate whether the participant understood the application problem, the technical approach, the trade-offs, and the production risks.
 
 Score each question out of 20. Total score should be out of 100.
-Use a strict but fair rubric:
+Use a strict competition rubric:
 - 0-4: no meaningful answer
 - 5-9: weak, generic, or off-topic
 - 10-14: partially correct with some useful reasoning
 - 15-17: strong and relevant
 - 18-20: excellent, specific, and technically grounded
+
+Hard grading rules:
+- You are allowed to give 0 if the answer is empty, vague, copied fluff, or technically incorrect.
+- Do not award courtesy points for verbosity without technical substance.
+- Penalize hand-wavy claims without architecture-level detail.
+- Penalize missing trade-offs, missing failure handling, and missing security/privacy considerations when relevant.
+- Keep the scoring distribution competitive and strict.
 
 Return valid JSON only with this shape:
 {
@@ -231,6 +244,16 @@ Participant answers: ${JSON.stringify(answers, null, 2)}`;
 function fallbackGrade(answers, questions) {
   const breakdown = questions.map((question, index) => {
     const answer = String(answers?.[index]?.answer || "").trim();
+    if (!answer) {
+      return {
+        id: question.id || index + 1,
+        score: 0,
+        max: 20,
+        comment: "No answer provided.",
+      };
+    }
+
+    const lowerAnswer = answer.toLowerCase();
     const words = answer ? answer.split(/\s+/).filter(Boolean).length : 0;
     const keywordHits = [question.question, question.focus]
       .filter(Boolean)
@@ -238,13 +261,32 @@ function fallbackGrade(answers, questions) {
       .toLowerCase()
       .split(/[^a-z0-9]+/)
       .filter((token) => token.length > 4)
-      .filter((token) => answer.toLowerCase().includes(token)).length;
-    const score = clampScore(Math.min(20, Math.round(words / 7) + keywordHits * 2 + (words > 0 ? 4 : 0)), 0, 20);
+      .filter((token) => lowerAnswer.includes(token)).length;
+
+    const technicalSignals = [
+      "architecture", "latency", "throughput", "cache", "queue", "index", "replica", "consistency",
+      "retry", "timeout", "idempot", "encryption", "privacy", "auth", "rate limit", "rollback", "monitor",
+      "observability", "load test", "trade-off", "scal",
+    ].filter((token) => lowerAnswer.includes(token)).length;
+
+    let score = Math.round(words / 18) + keywordHits * 3 + technicalSignals;
+
+    // Keep fallback strict: short/generic answers should stay low even if they mention a few keywords.
+    if (words < 8) score = Math.min(score, 2);
+    else if (words < 20) score = Math.min(score, 6);
+    else if (words < 40) score = Math.min(score, 11);
+
+    score = clampScore(score, 0, 20);
+
     return {
       id: question.id || index + 1,
       score,
       max: 20,
-      comment: score >= 15 ? "Strong response for the available context." : score >= 10 ? "Some useful reasoning, but more technical depth would help." : "Needs a clearer, more specific answer.",
+      comment: score >= 15
+        ? "Strong response with concrete technical detail."
+        : score >= 10
+          ? "Reasonable direction, but lacks deeper architecture and trade-off analysis."
+          : "Too generic or shallow for a competitive technical evaluation.",
     };
   });
 

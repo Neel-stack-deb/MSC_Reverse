@@ -227,59 +227,49 @@ async function fetchLeaderboard() {
 function renderLeaderboard(entries) {
   const podium = document.getElementById("lb-podium");
   const listEl = document.getElementById("lb-list-rows");
+  const sortedEntries = [...(Array.isArray(entries) ? entries : [])]
+    .map((entry) => ({
+      ...entry,
+      score: Number(entry?.score) || 0,
+    }))
+    .sort((a, b) => b.score - a.score);
 
   // ── Podium (top 3: order displayed as 2nd · 1st · 3rd) ──
   if (podium) {
-    if (entries.length === 0) {
+    if (sortedEntries.length === 0) {
       podium.innerHTML = `<p class="lb-empty">No entries yet — upload a document to be first! 🚀</p>`;
-    } else if (entries.length === 1) {
-      // Special case: only 1 entry - show as gold medal winner in center
-      const e = entries[0];
-      const initials = initials2(e.name);
-      podium.innerHTML = `
-        <div class="lb-podium-item lb-gold neo-card">
-          <div class="lb-avatar">${initials}</div>
-          <div class="lb-medal">🏆</div>
-          <p class="lb-uname">${esc(e.name)}</p>
-          <div class="lb-bar-wrap"><div class="lb-bar" style="height:100%"></div></div>
-          <div class="lb-rank-num">1</div>
-        </div>`;
-    } else if (entries.length === 2) {
-      // Special case: 2 entries - show as silver (left) and gold (right)
-      const positions = [
-        { idx: 0, cls: "lb-silver", medal: "🥈", rank: 1, h: "70%" },
-        { idx: 1, cls: "lb-gold",   medal: "🏆", rank: 2, h: "100%" },
-      ];
-      podium.innerHTML = positions.map(({ idx, cls, medal, rank, h }) => {
-        const e = entries[idx];
-        if (!e) return "";
-        const initials = initials2(e.name);
-        return `
-          <div class="lb-podium-item ${cls} neo-card">
-            <div class="lb-avatar">${initials}</div>
-            <div class="lb-medal">${medal}</div>
-            <p class="lb-uname">${esc(e.name)}</p>
-            <div class="lb-bar-wrap"><div class="lb-bar" style="height:${h}"></div></div>
-            <div class="lb-rank-num">${rank}</div>
-          </div>`;
-      }).join("");
     } else {
-      // Standard: 3+ entries - show 2nd · 1st · 3rd
-      const positions = [
-        { idx: 1, cls: "lb-silver", medal: "🥈", rank: 2, h: "70%" },
-        { idx: 0, cls: "lb-gold",   medal: "🏆", rank: 1, h: "100%" },
-        { idx: 2, cls: "lb-bronze", medal: "🥉", rank: 3, h: "50%" },
-      ];
-      podium.innerHTML = positions.map(({ idx, cls, medal, rank, h }) => {
-        const e = entries[idx];
-        if (!e) return "";
+      const podiumSize = Math.min(5, sortedEntries.length);
+      const byRank = [
+        { rank: 1, cls: "lb-gold",   medal: "🏆", h: "100%" },
+        { rank: 2, cls: "lb-silver", medal: "🥈", h: "74%" },
+        { rank: 3, cls: "lb-bronze", medal: "🥉", h: "58%" },
+        { rank: 4, cls: "lb-rank-4", medal: "🎖️", h: "48%" },
+        { rank: 5, cls: "lb-rank-5", medal: "🏅", h: "40%" },
+      ].slice(0, podiumSize);
+
+      const byPosition = {
+        1: [1],
+        2: [2, 1],
+        3: [2, 1, 3],
+        4: [4, 2, 1, 3],
+        5: [4, 2, 1, 3, 5],
+      };
+
+      const rankMeta = new Map(byRank.map((item) => [item.rank, item]));
+      const displayOrder = byPosition[podiumSize] || byPosition[5];
+
+      podium.innerHTML = displayOrder.map((rank) => {
+        const e = sortedEntries[rank - 1];
+        const meta = rankMeta.get(rank);
+        if (!e || !meta) return "";
         const initials = initials2(e.name);
         return `
-          <div class="lb-podium-item ${cls} neo-card">
+          <div class="lb-podium-item ${meta.cls} neo-card">
             <div class="lb-avatar">${initials}</div>
-            <div class="lb-medal">${medal}</div>
+            <div class="lb-medal">${meta.medal}</div>
             <p class="lb-uname">${esc(e.name)}</p>
-            <div class="lb-bar-wrap"><div class="lb-bar" style="height:${h}"></div></div>
+            <div class="lb-bar-wrap"><div class="lb-bar" style="height:${meta.h}"></div></div>
             <div class="lb-rank-num">${rank}</div>
           </div>`;
       }).join("");
@@ -288,11 +278,11 @@ function renderLeaderboard(entries) {
 
   // ── List (all entries with full ranking) ───────────────────────────────────────
   if (listEl) {
-    if (entries.length === 0) {
+    if (sortedEntries.length === 0) {
       listEl.innerHTML = `<p class="lb-empty" style="padding:1.5rem 0">Be the first to claim the leaderboard!</p>`;
     } else {
-      const maxScore = Math.max(...entries.map(e => e.score), 1);
-      listEl.innerHTML = entries.map((e, i) => {
+      const maxScore = Math.max(...sortedEntries.map(e => e.score), 1);
+      listEl.innerHTML = sortedEntries.map((e, i) => {
         const w = Math.round((e.score / maxScore) * 80) + 10;
         return `
           <div class="lb-row neo-card" style="--ri:${i}">
